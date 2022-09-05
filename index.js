@@ -1,52 +1,63 @@
-const { REST, Routes } = require('discord.js');
+const { EmbedBuilder, Embed } = require("discord.js");
+const { areEqual, getIcon } = require("./assets/constats");
+const { CONTRACT_INSTANCE, getTotalSupply } = require("./web3.config");
+const { sendMessage } = require("./webhook.config");
 
-const commands = [
+let previousTxHash = null;
+CONTRACT_INSTANCE.events.Transfer(
   {
-    name: 'ping',
-    description: 'Replies with Pong!',
+    filter: {
+      from: "0x0000000000000000000000000000000000000000", // we only want this event to be triggered for the Mint i.e. from Null Address
+    },
+    fromBlock: "latest",
   },
-];
+  async (error, data) => {
+    if (error) return console.log("transferError: ", error); //sometimes ws does not able to connect with infura and throws an error.
+    const {
+      returnValues: { tokenId, to },
+      transactionHash,
+    } = data;
 
-const rest = new REST({ version: '10' }).setToken('');
+    if (areEqual(previousTxHash, transactionHash)) return; // if transaction hash is different than previous transaction hash run the function otherwise stop.
+    previousTxHash = transactionHash; // update the previous transaction hash to the new transaction hash.
 
-(async () => {
-  try {
-    console.log('Started refreshing application (/) commands.');
+    let description = `Token Id: ${tokenId}.
+    \ntransaction: https://etherscan.io/tx/${transactionHash}`;
+    try {
+      const [totalSupply, maxSupply] = await Promise.all(
+        getTotalSupply(),
+        getMaxSupply()
+      );
 
-    await rest.put(Routes.applicationCommands(''), { body: commands });
+      description = `Token Id: ${tokenId}.
+      \nRemaning NFTs ${maxSupply - totalSupply}
+      \ntransaction: https://etherscan.io/tx/${transactionHash}`;
+    } catch (e) {}
 
-    console.log('Successfully reloaded application (/) commands.');
-  } catch (error) {
-    console.error(error);
+    const mintNotification = new EmbedBuilder()
+      .setTitle("NFT Mint")
+
+      .setDescription(description)
+      .setThumbnail(getIcon())
+      .setFooter({ text: new Date(Date.now()).toString() })
+      .setColor(0x00ffff);
+
+    sendMessage(mintNotification);
   }
-})();
+);
 
-const { Client, GatewayIntentBits } = require('discord.js');
-const client = new Client({ intents: [GatewayIntentBits.Guilds,
-                                      GatewayIntentBits.GuildMessages,
-                                      // GatewayIntentBits.MessageContent,
-                                      // GatewayIntentBits.GuildMembers
-                                    ] });
+getTotalSupply()
+  .then((totalSupply) => {
+    const TotalMintedNFTsNotifications = new EmbedBuilder()
+      .setTitle("Total Minted NFTs")
 
-client.on('ready', () => {
-  console.log(`Logged in as ${client.user.tag}!`);
-});
+      .setDescription(`Total Supply: ${totalSupply}`)
+      .setThumbnail(getIcon())
 
-client.on('interactionCreate', async interaction => {
-  if (!interaction.isChatInputCommand()) return;
+      .setFooter({ text: new Date(Date.now()).toString() })
 
-  if (interaction.commandName === 'ping') {
-    await interaction.reply('Pong!');
-  }
-});
+      .setColor(0x00ffff);
 
-client.login('');
-
-// client.on('message', msg => {
-//   if (msg.content === 'ping') {
-//     msg.reply('Pong!');
-//       }
-//     });
-
-// //make sure this line is the last line
-// client.login(process.env.CLIENT_TOKEN); //login bot using token
+    sendMessage(TotalMintedNFTsNotifications);
+  })
+  .catch(console.error);
