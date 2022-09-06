@@ -1,5 +1,6 @@
 const Web3 = require("web3");
 const abi = require("./assets/abi.json");
+const { areEqual } = require("./assets/constats");
 const { INFURA_URL, CONTRACT_ADDRESS } = require("./configs");
 
 const options = {
@@ -36,4 +37,28 @@ const getMaxSupply = async function () {
   return maxSupply;
 };
 
-module.exports = { CONTRACT_INSTANCE, getMaxSupply, getTotalSupply };
+const getTransactionsData = async function (transactionHash) {
+  return await web3.eth.getTransaction(transactionHash); // get transactin data
+};
+
+//
+const decodeInputData = function (hexString) {
+  const MINT_FUNCTION_SIGNATURE = "0xa0712d68";
+  let volume = 1;
+  const calledFunctionSignature = hexString.substring(0, 10); // extract called function signature and input data
+
+  if (areEqual(MINT_FUNCTION_SIGNATURE, calledFunctionSignature)) {
+    const volumeHex = "0x" + hexString.substring(10);
+    volume = parseInt(volumeHex);
+  }
+
+  return volume;
+};
+
+module.exports = {
+  CONTRACT_INSTANCE,
+  getMaxSupply,
+  getTotalSupply,
+  getTransactionsData,
+  decodeInputData,
+};
