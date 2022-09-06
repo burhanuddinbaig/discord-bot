@@ -1,6 +1,12 @@
 const { EmbedBuilder, Embed } = require("discord.js");
-const { areEqual, getIcon } = require("./assets/constats");
-const { CONTRACT_INSTANCE, getTotalSupply } = require("./web3.config");
+const { areEqual, getIcon, getTimeString } = require("./assets/constats");
+const {
+  CONTRACT_INSTANCE,
+  getTotalSupply,
+  getMaxSupply,
+  getTransactionsData,
+  decodeInputData,
+} = require("./web3.config");
 const { sendMessage } = require("./webhook.config");
 
 let previousTxHash = null;
@@ -21,17 +27,20 @@ CONTRACT_INSTANCE.events.Transfer(
     if (areEqual(previousTxHash, transactionHash)) return; // if transaction hash is different than previous transaction hash run the function otherwise stop.
     previousTxHash = transactionHash; // update the previous transaction hash to the new transaction hash.
 
-    let description = `Token Id: ${tokenId}.
-    \ntransaction: https://etherscan.io/tx/${transactionHash}`;
+    let description =
+      "Wohoo.. Someone has just minted a NFT. We are getting there.";
     try {
-      const [totalSupply, maxSupply] = await Promise.all(
+      const [totalSupply, transactionInfo, maxSupply] = await Promise.all([
         getTotalSupply(),
-        getMaxSupply()
-      );
+        getTransactionsData(transactionHash),
+        getMaxSupply(),
+      ]);
 
-      description = `Token Id: ${tokenId}.
-      \nRemaning NFTs ${maxSupply - totalSupply}
-      \ntransaction: https://etherscan.io/tx/${transactionHash}`;
+      const mintedNFTs = decodeInputData(transactionInfo.input);
+
+      description = `
+      Wohoo.. Someone has just minted ${mintedNFTs} NFT(s). We are getting there.
+      \nTotal Minted NFTs\n${totalSupply}/${maxSupply}`;
     } catch (e) {}
 
     const mintNotification = new EmbedBuilder()
@@ -39,7 +48,7 @@ CONTRACT_INSTANCE.events.Transfer(
 
       .setDescription(description)
       .setThumbnail(getIcon())
-      .setFooter({ text: new Date(Date.now()).toString() })
+      .setFooter({ text: getTimeString() })
       .setColor(0x00ffff);
 
     sendMessage(mintNotification);
@@ -47,15 +56,24 @@ CONTRACT_INSTANCE.events.Transfer(
 );
 
 getTotalSupply()
-  .then((totalSupply) => {
+  .then(async (totalSupply) => {
+    let maxSupply = 1000;
+    try {
+      maxSupply = await getMaxSupply();
+    } catch (err) {
+      console.log(err);
+    }
+
     const TotalMintedNFTsNotifications = new EmbedBuilder()
       .setTitle("Total Minted NFTs")
 
-      .setDescription(`Total Supply: ${totalSupply}`)
+      .setDescription(
+        `Wohoo... Total ${totalSupply} NFTs have been minted.
+      \nTotal Minted NFTs\n${totalSupply}/${maxSupply}
+      `
+      )
       .setThumbnail(getIcon())
-
-      .setFooter({ text: new Date(Date.now()).toString() })
-
+      .setFooter({ text: getTimeString() })
       .setColor(0x00ffff);
 
     sendMessage(TotalMintedNFTsNotifications);
