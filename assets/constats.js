@@ -9,3 +9,9 @@ module.exports.areEqual = (a, b) =>
 
 module.exports.getIcon = () =>
   "https://www.minetopia.io/assets/images/full_logo.png";
+
+module.exports.getTimeString = () => {
+  let newDate = new Date(Date.now());
+
+  return new Date(newDate.getTime()).toUTCString();
+};
